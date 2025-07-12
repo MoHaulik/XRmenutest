@@ -1,1 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WebXR Video Menu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #000;
+      overflow: hidden;
+      height: 100vh;
+      position: relative;
+    }
+    
+    #menu-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    }
+    
+    .start-button {
+      width: 120px;
+      height: 120px;
+      border: 3px solid rgba(255,255,255,0.9);
+      border-radius: 20px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      flex-direction: column;
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .start-button:hover {
+      transform: scale(1.05);
+      background: rgba(255,255,255,0.2);
+    }
+    
+    .start-button::before {
+      content: 'VR';
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .exit-button {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      width: 44px;
+      height: 44px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: all 0.3s ease;
+    }
+    
+    .exit-button:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    
+    .immersive-mode .exit-button {
+      display: flex;
+    }
+    
+    .status {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      z-index: 1001;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .status.visible {
+      opacity: 1;
+    }
+    
+    .device-info {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: white;
+      padding: 8px 12px;
+      font-size: 12px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    
+    .device-info.visible {
+      opacity: 1;
+    }
+    
+    #video-player {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: none;
+      z-index: 2000;
+    }
+    
+    #current-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    #video-controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    
+    .video-control {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: white;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .video-control:hover {
+      background: rgba(255,255,255,0.2);
+    }
+  </style>
+</head>
+<body>
+  <div id="menu-container">
+    <div class="start-button" id="start-button">
+      <div>Menu</div>
+    </div>
+  </div>
+  
+  <div id="video-player">
+    <video id="current-video" playsinline crossorigin="anonymous" controls></video>
+    <div id="video-controls">
+      <div class="video-control" id="back-to-menu">Back to Menu</div>
+    </div>
+  </div>
+  
+  <button class="exit-button" id="exit-button">×</button>
+  <div class="device-info" id="device-info"></div>
+  <div class="status" id="status"></div>
 
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.150.1/build/three.module.js';
+
+    // Video data - updated to use new thumbnails
+    const videoData = [
+      { title: 'Video 1', file: 'video1.mp4', thumb: '1.png' },
+      { title: 'Video 2', file: 'video2.mp4', thumb: '2.png' },
+      { title: 'Video 3', file: 'video3.mp4', thumb: '3.png' },
+      { title: 'Video 4', file: 'video4.mp4', thumb: '4.png' },
+      { title: 'Video 5', file: 'video5.mp4', thumb: '5.png' },
+      { title: 'Video 6', file: 'video6.mp4', thumb: '6.png' },
+      { title: 'Video 7', file: 'video7.mp4', thumb: '7.png' },
+      { title: 'Video 8', file: 'video8.mp4', thumb: '8.png' },
+      { title: 'Video 9', file: 'video9.mp4', thumb: '9.png' },
+      { title: 'Video 10', file: 'video10.mp4', thumb: '10.png' },
+      { title: 'Video 11', file: 'video11.mp4', thumb: '11.png' },
+      { title: 'Video 12', file: 'video12.mp4', thumb: '12.png' }
+    ];
+
+    // Core variables
+    let camera, scene, renderer, controllers = [], xrSession = null;
+    let menuPanels = [];
+    let hoveredPanel = -1;
+    let isInImmersiveMode = false;
+    let arSupported = false;
+    let raycaster = new THREE.Raycaster();
+    let tempMatrix = new THREE.Matrix4();
+    let clock = new THREE.Clock();
+    
+    // Grid configuration - optimized spacing
+    const gridCols = 4;
+    const gridRows = 3;
+    const curveRadius = 2.8;
+    
+    // Controller state
+    let controllerState = [
+      { isPressed: false, pressStartTime: 0, longPressTriggered: false },
+      { isPressed: false, pressStartTime: 0, longPressTriggered: false }
+    ];
+    
+    // DOM elements
+    const startButton = document.getElementById('start-button');
+    const exitButton = document.getElementById('exit-button');
+    const statusEl = document.getElementById('status');
+    const deviceInfoEl = document.getElementById('device-info');
+    const videoPlayer = document.getElementById('video-player');
+    const currentVideo = document.getElementById('current-video');
+    const backToMenuBtn = document.getElementById('back-to-menu');
+    
+    // Create text texture helper
+    function createTextTexture(text, fontSize = 48, color = '#ffffff', bgColor = 'transparent') {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      canvas.width = 512;
+      canvas.height = 128;
+      
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = color;
+      ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      const words = text.split(' ');
+      const lines = [];
+      let currentLine = '';
+      
+      for (let word of words) {
+        const testLine = currentLine + word + ' ';
+        if (ctx.measureText(testLine).width > canvas.width - 40 && currentLine !== '') {
+          lines.push(currentLine.trim());
+          currentLine = word + ' ';
+        } else {
+          currentLine = testLine;
+        }
+      }
+      lines.push(currentLine.trim());
+      
+      const lineHeight = fontSize * 1.2;
+      const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+      
+      lines.forEach((line, i) => {
+        ctx.fillText(line, canvas.width / 2, startY + i * lineHeight);
+      });
+      
+      return new THREE.CanvasTexture(canvas);
+    }
+    
+    function init() {
+      checkARSupport();
+      
+      // Setup Three.js
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+      
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      renderer.setClearColor(0x000000, 0);
+      renderer.domElement.style.position = 'absolute';
+      renderer.domElement.style.top = '0';
+      renderer.domElement.style.left = '0';
+      renderer.domElement.style.zIndex = '-1';
+      document.body.appendChild(renderer.domElement);
+      
+      // Setup menu panels
+      setupMenuPanels();
+      
+      // Add lighting
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+      scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(1, 1, 0.5);
+      scene.add(directionalLight);
+      
+      // Event listeners
+      startButton.addEventListener('click', enterVRMenu);
+      exitButton.addEventListener('click', exitImmersiveMode);
+      backToMenuBtn.addEventListener('click', backToMenu);
+      
+      window.addEventListener('resize', onWindowResize);
+    }
+    
+    async function checkARSupport() {
+      if (!navigator.xr) {
+        updateDeviceInfo('Standard Device');
+        return;
+      }
+      
+      try {
+        arSupported = await navigator.xr.isSessionSupported('immersive-ar');
+        updateDeviceInfo(arSupported ? 'WebXR Ready' : 'WebXR Not Available');
+      } catch (e) {
+        updateDeviceInfo('WebXR Check Failed');
+      }
+    }
+    
+    function updateDeviceInfo(text) {
+      deviceInfoEl.textContent = text;
+      deviceInfoEl.classList.add('visible');
+      setTimeout(() => deviceInfoEl.classList.remove('visible'), 4000);
+    }
+    
+    function setupMenuPanels() {
+      menuPanels = [];
+      
+      // Create geometries
+      const panelGeometry = new THREE.PlaneGeometry(0.4, 0.3);
+      const frameGeometry = new THREE.PlaneGeometry(0.42, 0.32);
+      const titleGeometry = new THREE.PlaneGeometry(0.4, 0.08);
+      
+      for (let i = 0; i < videoData.length; i++) {
+        const row = Math.floor(i / gridCols);
+        const col = i % gridCols;
+        
+        // Calculate position with better spacing
+        const x = (col - (gridCols - 1) / 2) * 0.55;
+        const y = ((gridRows - 1) / 2 - row) * 0.45;
+        const z = -2.5;
+        
+        // Apply curve with better distribution
+        const angle = (x / (gridCols * 0.4)) * 0.8;
+        const curvedX = Math.sin(angle) * curveRadius;
+        const curvedZ = z + Math.cos(angle) * curveRadius - curveRadius;
+        
+        // Create panel group
+        const panelGroup = new THREE.Group();
+        panelGroup.position.set(curvedX, y, curvedZ);
+        panelGroup.lookAt(0, y, 0);
+        
+        // Create frame with subtle glow
+        const frameMaterial = new THREE.MeshLambertMaterial({ 
+          color: 0x1a1a1a,
+          transparent: true,
+          opacity: 0.95
+        });
+        const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+        frame.position.z = -0.001;
+        panelGroup.add(frame);
+        
+        // Create thumbnail panel
+        const thumbnailMaterial = new THREE.MeshLambertMaterial({ 
+          color: 0x333333,
+          transparent: true 
+        });
+        const panel = new THREE.Mesh(panelGeometry, thumbnailMaterial);
+        panelGroup.add(panel);
+        
+        // Create title with proper text
+        const titleTexture = createTextTexture(videoData[i].title, 36, '#ffffff', 'transparent');
+        const titleMaterial = new THREE.MeshLambertMaterial({ 
+          map: titleTexture,
+          transparent: true,
+          opacity: 0.8
+        });
+        const title = new THREE.Mesh(titleGeometry, titleMaterial);
+        title.position.set(0, -0.22, 0.001);
+        panelGroup.add(title);
+        
+        // Load thumbnail - updated to use new PNG files
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(
+          videoData[i].thumb,
+          (texture) => {
+            thumbnailMaterial.map = texture;
+            thumbnailMaterial.color.setHex(0xffffff);
+            thumbnailMaterial.needsUpdate = true;
+          },
+          undefined,
+          (error) => {
+            console.log('Thumbnail load failed for', videoData[i].thumb, ':', error);
+          }
+        );
+        
+        // Store panel data
+        panelGroup.userData = {
+          index: i,
+          originalScale: new THREE.Vector3(1, 1, 1),
+          originalPosition: new THREE.Vector3(curvedX, y, curvedZ),
+          targetScale: new THREE.Vector3(1, 1, 1),
+          targetPosition: new THREE.Vector3(curvedX, y, curvedZ),
+          frame: frame,
+          panel: panel,
+          title: title,
+          video: videoData[i],
+          isHovered: false
+        };
+        
+        menuPanels.push(panelGroup);
+        scene.add(panelGroup);
+      }
+    }
+    
+    async function enterVRMenu() {
+      if (!arSupported) {
+        showStatus('WebXR not supported - showing 2D menu');
+        return;
+      }
+      
+      try {
+        const session = await navigator.xr.requestSession('immersive-ar', {
+          optionalFeatures: ['hand-tracking']
+        });
+        
+        await onSessionStarted(session);
+        
+      } catch (err) {
+        showStatus('AR failed: ' + err.message);
+      }
+    }
+    
+    async function onSessionStarted(session) {
+      xrSession = session;
+      isInImmersiveMode = true;
+      
+      document.body.classList.add('immersive-mode');
+      
+      renderer.xr.setReferenceSpaceType('local');
+      await renderer.xr.setSession(session);
+      
+      // Setup controllers
+      controllers = [0, 1].map(i => {
+        const controller = renderer.xr.getController(i);
+        controller.addEventListener('selectstart', () => handleControllerPress(i, true));
+        controller.addEventListener('selectend', () => handleControllerPress(i, false));
+        scene.add(controller);
+        return controller;
+      });
+      
+      renderer.setAnimationLoop(render);
+      session.addEventListener('end', onSessionEnd);
+      
+      showStatus('VR Menu Active - Point and tap to select');
+    }
+    
+    function handleControllerPress(controllerIndex, isPressed) {
+      const state = controllerState[controllerIndex];
+      
+      if (isPressed) {
+        state.isPressed = true;
+        state.pressStartTime = Date.now();
+        state.longPressTriggered = false;
+        
+        // Long press to exit (2 seconds)
+        setTimeout(() => {
+          if (state.isPressed && !state.longPressTriggered) {
+            const pressDuration = Date.now() - state.pressStartTime;
+            if (pressDuration >= 2000) {
+              state.longPressTriggered = true;
+              exitImmersiveMode();
+            }
+          }
+        }, 2000);
+        
+      } else {
+        if (state.isPressed && !state.longPressTriggered) {
+          const pressDuration = Date.now() - state.pressStartTime;
+          
+          if (pressDuration < 500 && hoveredPanel >= 0) {
+            selectVideo(hoveredPanel);
+          }
+        }
+        
+        state.isPressed = false;
+        state.pressStartTime = 0;
+        state.longPressTriggered = false;
+      }
+    }
+    
+    function selectVideo(index) {
+      if (index >= 0 && index < videoData.length) {
+        const video = videoData[index];
+        showStatus(`Loading ${video.title}...`);
+        
+        // Exit VR and play video
+        exitImmersiveMode();
+        
+        setTimeout(() => {
+          currentVideo.src = video.file;
+          videoPlayer.style.display = 'block';
+          currentVideo.play().catch(err => {
+            showStatus('Video play failed: ' + err.message);
+          });
+        }, 500);
+      }
+    }
+    
+    function backToMenu() {
+      videoPlayer.style.display = 'none';
+      currentVideo.pause();
+      currentVideo.src = '';
+      
+      if (arSupported) {
+        setTimeout(() => {
+          enterVRMenu();
+        }, 200);
+      }
+    }
+    
+    function updatePanelHover() {
+      if (!controllers.length) return;
+      
+      let newHoveredPanel = -1;
+      
+      for (let i = 0; i < controllers.length; i++) {
+        const controller = controllers[i];
+        
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+        
+        const intersects = raycaster.intersectObjects(menuPanels, true);
+        
+        if (intersects.length > 0) {
+          const intersectedPanel = intersects[0].object.parent;
+          if (intersectedPanel.userData.index !== undefined) {
+            newHoveredPanel = intersectedPanel.userData.index;
+            break;
+          }
+        }
+      }
+      
+      // Update hover states with smooth animations
+      if (newHoveredPanel !== hoveredPanel) {
+        // Reset previous hovered panel
+        if (hoveredPanel >= 0) {
+          const prevPanel = menuPanels[hoveredPanel];
+          prevPanel.userData.targetScale.copy(prevPanel.userData.originalScale);
+          prevPanel.userData.targetPosition.copy(prevPanel.userData.originalPosition);
+          prevPanel.userData.isHovered = false;
+        }
+        
+        // Set new hovered panel
+        hoveredPanel = newHoveredPanel;
+        if (hoveredPanel >= 0) {
+          const panel = menuPanels[hoveredPanel];
+          panel.userData.targetScale.set(1.12, 1.12, 1.12);
+          panel.userData.targetPosition.copy(panel.userData.originalPosition).add(new THREE.Vector3(0, 0, 0.08));
+          panel.userData.isHovered = true;
+        }
+      }
+    }
+    
+    function animatePanels() {
+      const deltaTime = clock.getDelta();
+      const lerpFactor = Math.min(deltaTime * 8, 1); // Smooth animation
+      
+      menuPanels.forEach(panel => {
+        const userData = panel.userData;
+        
+        // Animate scale
+        panel.scale.lerp(userData.targetScale, lerpFactor);
+        
+        // Animate position
+        panel.position.lerp(userData.targetPosition, lerpFactor);
+        
+        // Animate materials
+        if (userData.isHovered) {
+          userData.frame.material.color.lerp(new THREE.Color(0x444444), lerpFactor);
+          userData.frame.material.opacity = THREE.MathUtils.lerp(userData.frame.material.opacity, 1.0, lerpFactor);
+          userData.title.material.opacity = THREE.MathUtils.lerp(userData.title.material.opacity, 1.0, lerpFactor);
+        } else {
+          userData.frame.material.color.lerp(new THREE.Color(0x1a1a1a), lerpFactor);
+          userData.frame.material.opacity = THREE.MathUtils.lerp(userData.frame.material.opacity, 0.95, lerpFactor);
+          userData.title.material.opacity = THREE.MathUtils.lerp(userData.title.material.opacity, 0.8, lerpFactor);
+        }
+      });
+    }
+    
+    function render() {
+      updatePanelHover();
+      animatePanels();
+      renderer.render(scene, camera);
+    }
+    
+    function exitImmersiveMode() {
+      if (xrSession) {
+        xrSession.end();
+      }
+    }
+    
+    function onSessionEnd() {
+      isInImmersiveMode = false;
+      document.body.classList.remove('immersive-mode');
+      
+      renderer.setAnimationLoop(null);
+      xrSession = null;
+      
+      controllers.forEach(controller => scene.remove(controller));
+      controllers = [];
+      
+      controllerState.forEach(state => {
+        state.isPressed = false;
+        state.pressStartTime = 0;
+        state.longPressTriggered = false;
+      });
+      
+      // Reset panel states
+      hoveredPanel = -1;
+      menuPanels.forEach(panel => {
+        panel.scale.copy(panel.userData.originalScale);
+        panel.position.copy(panel.userData.originalPosition);
+        panel.userData.isHovered = false;
+        panel.userData.targetScale.copy(panel.userData.originalScale);
+        panel.userData.targetPosition.copy(panel.userData.originalPosition);
+      });
+      
+      showStatus('Exited VR Menu');
+    }
+    
+    function showStatus(message) {
+      statusEl.textContent = message;
+      statusEl.classList.add('visible');
+      
+      clearTimeout(showStatus.timeout);
+      showStatus.timeout = setTimeout(() => {
+        statusEl.classList.remove('visible');
+      }, 3000);
+    }
+    
+    function onWindowResize() {
+      if (camera) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+      }
+      if (renderer) {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    }
+    
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+      if (xrSession) {
+        xrSession.end();
+      }
+    });
+    
+    // Initialize
+    init();
+  </script>
+</body>
+</html>
